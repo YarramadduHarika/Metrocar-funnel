@@ -1,0 +1,73 @@
+--understanding the metrocar database
+
+--1.How many times was the app downloaded?
+SELECT COUNT(*) AS app_downloaded
+FROM app_downloads;
+
+--2.How many users signed up on the app?
+SELECT COUNT(*) AS users_signed_up
+FROM signups;
+
+--3.How many rides were requested through the app?
+SELECT COUNT(*) AS rides_requested
+FROM ride_requests;
+
+--4.How many rides were requested and completed through the app?
+
+SELECT COUNT(*) AS total_rides_requested,
+			 SUM(
+       CASE WHEN dropoff_ts IS NOT NULL
+       THEN 1
+       ELSE 0
+       END) AS total_rides_completed
+FROM ride_requests;
+
+--5.How many rides were requested and how many unique users requested a ride?
+SELECT COUNT(*) AS rides_requested,
+			 COUNT(DISTINCT user_id) AS unique_users_requested_ride
+FROM ride_requests;
+
+--6.What is the average time of a ride from pick up to drop off?
+SELECT AVG(dropoff_ts - pickup_ts) AS avg_time
+FROM ride_requests;
+
+--7.How many rides were accepted by a driver?
+SELECT COUNT(driver_id) as requests_accepted
+FROM ride_requests 
+WHERE accept_ts	 IS NOT NULL;
+
+--8.How many rides did we successfully collect payments and how much was collected?
+SELECT COUNT(rr.ride_id) as successful_payment_rides,
+sum(ts.purchase_amount_usd) as total_amount
+FROM ride_requests rr
+left join transactions ts ON rr.ride_id = ts.ride_id
+WHERE rr.cancel_ts IS NULL;
+
+--9.How many ride requests happened on each platform?
+SELECT COUNT(rr.ride_id) AS ride_request,
+	ad.platform
+FROM app_downloads ad
+LEFT JOIN signups su ON su.session_id = ad.app_download_key
+LEFT JOIN ride_requests rr ON rr.user_id = su.user_id
+GROUP BY ad.platform;
+
+--10.What is the drop-off from users signing up to users requesting a ride?
+WITH total_signup_users as(
+  SELECT COUNT(DISTINCT user_id) as signup_users
+  FROM signups su
+  ), total_ride_request_users as(
+  SELECT COUNT(DISTINCT user_id) as request_users
+  FROM ride_requests
+  )
+  SELECT signup_users,
+  request_users,
+  (1-(request_users/signup_users::numeric))*100 as drop_off_percentage
+  FROM total_signup_users, total_ride_request_users;
+  
+-- this the other way of doing the same question because same users are retained in both the tables
+
+SELECT COUNT(DISTINCT s.user_id) as signups,
+COUNT(DISTINCT r.user_id) as users_requested_ride,
+(1-(COUNT(DISTINCT r.user_id)/COUNT(DISTINCT s.user_id):: numeric))*100 as dropoff_percentage
+FROM signups s
+LEFT JOIN ride_requests r ON r.user_id = s.user_id;
